@@ -114,6 +114,11 @@ func (twm TransactionWithMeta) GetTransaction() (*solana.Transaction, error) {
 	if err != nil {
 		return nil, err
 	}
+	writable, wok := twm.Meta.LoadedAddresses["writable"]
+	readonly, rok := twm.Meta.LoadedAddresses["readonly"]
+	if wok && rok && (len(writable) > 0 || len(readonly) > 0) {
+		tx.Message.AppendLookupKeys(writable, readonly)
+	}
 	return tx, nil
 }
 
@@ -181,6 +186,8 @@ type TransactionMeta struct {
 
 	// DEPRECATED: Transaction status.
 	Status DeprecatedTransactionMetaStatus `json:"status"`
+
+	LoadedAddresses map[string][]solana.PublicKey `json:"loadedAddresses"`
 
 	Rewards []BlockReward `json:"rewards"`
 }

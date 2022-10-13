@@ -89,11 +89,13 @@ type Message struct {
 	// NOTE: you need to fetch these from the chain, and then call `SetAddressTables`
 	// before you use this transaction -- otherwise, you will get a panic.
 	addressTables map[PublicKey][]PublicKey
+
+	lookupResolved bool
 }
 
 func (mx *Message) SetAddressTables(tables map[PublicKey][]PublicKey) error {
-	if mx.addressTables != nil {
-		return fmt.Errorf("address tables already set")
+	if mx.addressTables != nil || mx.lookupResolved {
+		return fmt.Errorf("address tables already set or lookup addresses has been appended")
 	}
 	mx.addressTables = tables
 	return mx.resolveLookups(tables)
@@ -103,6 +105,13 @@ func (mx *Message) SetAddressTables(tables map[PublicKey][]PublicKey) error {
 // NOTE: you must have called `SetAddressTable` one or more times before being able to use this method.
 func (mx *Message) GetAddressTables() map[PublicKey][]PublicKey {
 	return mx.addressTables
+}
+
+func (mx *Message) AppendLookupKeys(writable, readable []PublicKey) {
+	mx.AccountKeys = append(mx.AccountKeys, writable...)
+	mx.AccountKeys = append(mx.AccountKeys, readable...)
+
+	mx.lookupResolved = true
 }
 
 var _ bin.EncoderDecoder = &Message{}
@@ -341,6 +350,7 @@ func (mx *Message) resolveLookups(tables map[PublicKey][]PublicKey) (err error) 
 			mx.AccountKeys = append(mx.AccountKeys, table[idx])
 		}
 	}
+	mx.lookupResolved = true
 	return nil
 }
 
@@ -481,7 +491,7 @@ func (m Message) checkPreconditions() {
 	// and there are > 0 lookups,
 	// but the address table is empty,
 	// then we can't build the account meta list:
-	if m.IsVersioned() && m.addressTableLookups.NumLookups() > 0 && (m.addressTables == nil || len(m.addressTables) == 0) {
+	if m.IsVersioned() && m.addressTableLookups.NumLookups() > 0 && !m.lookupResolved {
 		panic("cannot build account meta list without address tables")
 	}
 }
